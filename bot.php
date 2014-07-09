@@ -39,6 +39,12 @@ function startsWith($haystack, $needle)
 	return $needle === "" || strpos($haystack, $needle) === 0;
 }
 
+function sendMessage($message)
+{
+	global $conn;
+	post($conn, SEND_MESSAGE_URL, 'body='. urlencode($message));
+}
+
 function nerdpoints($params)
 {
 	global $conn, $processedIds, $nerdpoints;
@@ -47,22 +53,52 @@ function nerdpoints($params)
 	$username = $params[1];
 	if($action == 'add')
 	{
-		if(count($params) < 4) return;
+		if(count($params) < 5) return;
 		$points = intval($params[2]);
 		$points = abs($points);
 		
-		$messageid = $params[3];
+		$sender = $params[4];
 		
-		post($conn, SEND_MESSAGE_URL, 'body='. urlencode($username . ' bekommt ' . $points . ' Nerdpunkte'));
+		if(!isset($nerdpoints->{$username}))
+		{
+			sendMessage('Der User `' .$username . '\' existiert nicht.');
+			return;
+		}
+		if($sender == $username)
+		{
+			sendMessage('Du kannst dir nicht selbst Nerdpoints geben!');
+			return;
+		}
+		
+		
+		sendMessage($username . ' bekommt ' . $points . ' Nerdpunkte');
 		$nerdpoints->{$username} += $points;
 	}
 	else if($action == 'show')
 	{
-		post($conn, SEND_MESSAGE_URL, 'body='. urlencode($username . ' hat bereits ' . $nerdpoints->{$username} . ' Nerdpoints angesammelt'));
+		if(isset($nerdpoints->{$username}))
+		{
+			sendMessage($username . ' hat bereits ' . $nerdpoints->{$username} . ' Nerdpoints angesammelt');
+		}
+		else 
+		{
+			sendMessage('Der User `' .$username . '\' existiert nicht.');
+		}
 	}
 }
 
-$cmds = array('nerdpoints' => array('param_length' => 3));
+function afk($params)
+{
+	if(count($params) != 2)
+		return;
+	
+	$id = $params[0];
+	$sender = $params[1];
+	
+	sendMessage($sender . ' ist jetzt Away from Keyboard.');
+}
+
+$cmds = array('nerdpoints' => '', 'afk' => '');
 $processedIds = json_decode(file_get_contents('secure/processed_ids.json'), true);
 $nerdpoints = json_decode(file_get_contents('secure/nerdpoints.json'));
 
@@ -88,6 +124,7 @@ foreach($messages->payload as $id=>$message)
 			unset($cmdArr[0]);
 
 			$cmdArr[] = $id;
+			$cmdArr[] = $message[0];
 			call_user_func($cmdName, array_values($cmdArr));
 			$processedIds['ids'][] = $id;
 		}
