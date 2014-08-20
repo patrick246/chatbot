@@ -4,6 +4,8 @@ $loadMessage_url = "http://chat.blackphantom.de/api/loadLastMessages.php?limit=2
 define('SEND_MESSAGE_URL', "http://chat.blackphantom.de/api/sendMessage.php");
 define('COOKIE_FILE', realpath('secure/cookiefile.txt'));
 
+$sentences_bot = array('Gehts um mich?', 'Was ist mit mir?', 'Redet ihr von mir?');
+
 $conn = curl_init();
 
 function get($c, $url)
@@ -42,7 +44,7 @@ function startsWith($haystack, $needle)
 function sendMessage($message)
 {
 	global $conn;
-	post($conn, SEND_MESSAGE_URL, 'body='. urlencode($message));
+	post($conn, SEND_MESSAGE_URL, 'body='. urlencode(html_entity_decode($message)));
 }
 
 function nerdpoints($params)
@@ -98,7 +100,29 @@ function afk($params)
 	sendMessage($sender . ' ist jetzt Away from Keyboard.');
 }
 
-$cmds = array('nerdpoints' => '', 'afk' => '');
+function joke($params)
+{
+	if(count($params) > 2)
+	{
+		unset($params[1], $params[2]);
+		$joke = json_decode(file_get_contents('http://api.icndb.com/jokes/random?limitTo=['. implode(',', array_values($params)) .']'));
+	}
+	else
+	{
+		$joke = json_decode(file_get_contents('http://api.icndb.com/jokes/random'));
+	}
+	
+	if($joke->type != 'success')
+	{
+		sendMessage('Tut mir leid, mir fällt gerade keiner ein...');
+	}
+	else
+	{
+		sendMessage($joke->value->joke);		
+	}
+}
+
+$cmds = array('nerdpoints' => '', 'afk' => '', 'joke' => '');
 $processedIds = json_decode(file_get_contents('secure/processed_ids.json'), true);
 $nerdpoints = json_decode(file_get_contents('secure/nerdpoints.json'));
 
@@ -128,6 +152,11 @@ foreach($messages->payload as $id=>$message)
 			call_user_func($cmdName, array_values($cmdArr));
 			$processedIds['ids'][] = $id;
 		}
+	}
+	else if(stristr($message[2], 'bot') !== false)
+	{
+		sendMessage($sentences_bot[rand(0, count($sentences_bot) - 1)]);
+		$processedIds['ids'][] = $id;
 	}
 }
 
